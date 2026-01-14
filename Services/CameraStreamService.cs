@@ -17,10 +17,11 @@ namespace ColMate.Services
         public event Action<Mat>? FrameReady;
         public event Action<string>? Status;
 
-        public void Start(int deviceIndex)
+        public void Start(int deviceIndex, int? requestedWidth = null, int? requestedHeight = null)
         {
             Stop();
-            _capture = new VideoCapture(deviceIndex, VideoCaptureAPIs.DSHOW);
+            // MSMF (Media Foundation) handles 4K/High-Res webcams better on modern Windows than DSHOW
+            _capture = new VideoCapture(deviceIndex, VideoCaptureAPIs.MSMF);
 
             if (!_capture.IsOpened())
             {
@@ -31,17 +32,26 @@ namespace ColMate.Services
             _capture.Set(VideoCaptureProperties.AutoFocus, 0);
             _capture.Set(VideoCaptureProperties.AutoExposure, 0);
 
+            // Gewünschte Auflösung versuchen (falls angegeben)
+            if (requestedWidth.HasValue && requestedHeight.HasValue)
+            {
+                // MJPG kann höhere Auflösungen/FPS ermöglichen (abhängig vom Treiber)
+                _capture.Set(VideoCaptureProperties.FourCC, FourCC.MJPG);
+                _capture.Set(VideoCaptureProperties.FrameWidth, requestedWidth.Value);
+                _capture.Set(VideoCaptureProperties.FrameHeight, requestedHeight.Value);
+            }
+
             // Auflösung sofort auslesen
             VideoWidth = (int)_capture.Get(VideoCaptureProperties.FrameWidth);
             VideoHeight = (int)_capture.Get(VideoCaptureProperties.FrameHeight);
 
             // Sicherheits-Fallback für Ocal
-            if (VideoWidth <= 0) VideoWidth = 2592;
-            if (VideoHeight <= 0) VideoHeight = 1944;
+            if (VideoWidth <= 0) VideoWidth = requestedWidth ?? 640;
+            if (VideoHeight <= 0) VideoHeight = requestedHeight ?? 480;
 
             _cts = new CancellationTokenSource();
             IsStreaming = true;
-            Status?.Invoke("Stream aktiv.");
+            Status?.Invoke($"Stream aktiv: {VideoWidth}×{VideoHeight}");
             Task.Run(() => Loop(_cts.Token));
         }
 

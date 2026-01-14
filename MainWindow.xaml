@@ -2,13 +2,14 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:ColMate.ViewModels"
+        xmlns:helpers="clr-namespace:ColMate.Helpers"
         Title="ColMate" Height="720" Width="1200"
         Background="#FF121212" Foreground="#FFEAEAEA"
         WindowStartupLocation="CenterScreen"
         Closing="Window_Closing">
 
     <Window.Resources>
-        <vm:CenterConverter x:Key="CenterConverter"/>
+        <helpers:CenterConverter x:Key="CenterConverter"/>
     </Window.Resources>
 
     <Window.DataContext>
@@ -40,7 +41,7 @@
                     <ComboBox Width="220"
                               ItemsSource="{Binding Cameras}"
                               SelectedItem="{Binding SelectedCamera}"
-                              DisplayMemberPath="Name"
+                              DisplayMemberPath="DisplayName"
                               VerticalContentAlignment="Center"/>
                     <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="8,0,0,0" Padding="10,4"/>
                 </StackPanel>
@@ -87,25 +88,46 @@
                             <!-- Rotatable crosshair -->
                             <Canvas.RenderTransform>
                                 <RotateTransform Angle="{Binding CrosshairAngle}"
-                                                 CenterX="{Binding CenterX}"
-                                                 CenterY="{Binding CenterY}"/>
+                                                 CenterX="{Binding OverlayCenterX}"
+                                                 CenterY="{Binding OverlayCenterY}"/>
                             </Canvas.RenderTransform>
 
-                            <Line X1="{Binding CenterX}" Y1="{Binding CrosshairY1}"
-                                  X2="{Binding CenterX}" Y2="{Binding CrosshairY2}"
+                            <Line X1="{Binding OverlayCenterX}" Y1="{Binding CrosshairY1}"
+                                  X2="{Binding OverlayCenterX}" Y2="{Binding CrosshairY2}"
                                   Stroke="{Binding CrosshairBrush}" StrokeThickness="{Binding CrosshairThickness}" Opacity="0.95"/>
 
-                            <Line X1="{Binding CrosshairX1}" Y1="{Binding CenterY}"
-                                  X2="{Binding CrosshairX2}" Y2="{Binding CenterY}"
+                            <Line X1="{Binding CrosshairX1}" Y1="{Binding OverlayCenterY}"
+                                  X2="{Binding CrosshairX2}" Y2="{Binding OverlayCenterY}"
                                   Stroke="{Binding CrosshairBrush}" StrokeThickness="{Binding CrosshairThickness}" Opacity="0.95"/>
 
                             <!-- Circles -->
-                            <ItemsControl ItemsSource="{Binding Circles}">
+                            <ItemsControl ItemsSource="{Binding Circles}" Width="{Binding FrameWidth}" Height="{Binding FrameHeight}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
-                                        <Canvas/>
+                                        <Canvas Width="{Binding FrameWidth}" Height="{Binding FrameHeight}"/>
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
+
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Canvas.Left">
+                                            <Setter.Value>
+                                                <MultiBinding Converter="{StaticResource CenterConverter}">
+                                                    <Binding Path="DataContext.OverlayCenterX" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                                    <Binding Path="Diameter"/>
+                                                </MultiBinding>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Setter Property="Canvas.Top">
+                                            <Setter.Value>
+                                                <MultiBinding Converter="{StaticResource CenterConverter}">
+                                                    <Binding Path="DataContext.OverlayCenterY" RelativeSource="{RelativeSource AncestorType=Window}"/>
+                                                    <Binding Path="Diameter"/>
+                                                </MultiBinding>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
 
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -113,22 +135,7 @@
                                                  StrokeThickness="{Binding Thickness}"
                                                  Fill="Transparent"
                                                  Width="{Binding Diameter}"
-                                                 Height="{Binding Diameter}">
-
-                                            <Canvas.Left>
-                                                <MultiBinding Converter="{StaticResource CenterConverter}">
-                                                    <Binding Path="DataContext.CenterX" RelativeSource="{RelativeSource AncestorType=Window}"/>
-                                                    <Binding Path="Diameter"/>
-                                                </MultiBinding>
-                                            </Canvas.Left>
-
-                                            <Canvas.Top>
-                                                <MultiBinding Converter="{StaticResource CenterConverter}">
-                                                    <Binding Path="DataContext.CenterY" RelativeSource="{RelativeSource AncestorType=Window}"/>
-                                                    <Binding Path="Diameter"/>
-                                                </MultiBinding>
-                                            </Canvas.Top>
-                                        </Ellipse>
+                                                 Height="{Binding Diameter}"/>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -153,21 +160,29 @@
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="120"/>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Winkel (°)" VerticalAlignment="Center" Foreground="#FFBFBFBF"/>
-                                    <Slider Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="360" Value="{Binding CrosshairAngle}" />
+                                    <Button Grid.Row="0" Grid.Column="1" Content="-" Command="{Binding CrosshairAngleDown}" Width="24" Height="24" Padding="0"/>
+                                    <Slider Grid.Row="0" Grid.Column="2" Minimum="0" Maximum="360" Value="{Binding CrosshairAngle}" Margin="4,0"/>
+                                    <Button Grid.Row="0" Grid.Column="3" Content="+" Command="{Binding CrosshairAngleUp}" Width="24" Height="24" Padding="0"/>
 
                                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Länge" VerticalAlignment="Center" Foreground="#FFBFBFBF" Margin="0,8,0,0"/>
-                                    <Slider Grid.Row="1" Grid.Column="1" Minimum="50" Maximum="2000" Value="{Binding CrosshairLength}" Margin="0,8,0,0"/>
+                                    <Button Grid.Row="1" Grid.Column="1" Content="-" Command="{Binding CrosshairLengthDown}" Width="24" Height="24" Padding="0" Margin="0,8,0,0"/>
+                                    <Slider Grid.Row="1" Grid.Column="2" Minimum="50" Maximum="2000" Value="{Binding CrosshairLength}" Margin="4,8,4,0"/>
+                                    <Button Grid.Row="1" Grid.Column="3" Content="+" Command="{Binding CrosshairLengthUp}" Width="24" Height="24" Padding="0" Margin="0,8,0,0"/>
 
                                     <TextBlock Grid.Row="2" Grid.Column="0" Text="Dicke" VerticalAlignment="Center" Foreground="#FFBFBFBF" Margin="0,8,0,0"/>
-                                    <Slider Grid.Row="2" Grid.Column="1" Minimum="1" Maximum="10" Value="{Binding CrosshairThickness}" Margin="0,8,0,0"/>
+                                    <Button Grid.Row="2" Grid.Column="1" Content="-" Command="{Binding CrosshairThicknessDown}" Width="24" Height="24" Padding="0" Margin="0,8,0,0"/>
+                                    <Slider Grid.Row="2" Grid.Column="2" Minimum="1" Maximum="10" Value="{Binding CrosshairThickness}" Margin="4,8,4,0"/>
+                                    <Button Grid.Row="2" Grid.Column="3" Content="+" Command="{Binding CrosshairThicknessUp}" Width="24" Height="24" Padding="0" Margin="0,8,0,0"/>
 
                                     <TextBlock Grid.Row="3" Grid.Column="0" Text="Farbe" VerticalAlignment="Center" Foreground="#FFBFBFBF" Margin="0,8,0,0"/>
-                                    <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding BrushOptions}"
+                                    <ComboBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" ItemsSource="{Binding BrushOptions}"
                                               DisplayMemberPath="Name" SelectedValuePath="Brush"
                                               SelectedValue="{Binding CrosshairBrush}" Margin="0,8,0,0"/>
                                 </Grid>
@@ -206,20 +221,26 @@
                                                 <RowDefinition Height="Auto"/>
                                             </Grid.RowDefinitions>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="90"/>
+                                                <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
 
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Radius" VerticalAlignment="Center" Foreground="#FFBFBFBF"/>
-                                            <Slider Grid.Row="0" Grid.Column="1" Minimum="10" Maximum="2500"
-                                                    Value="{Binding SelectedCircle.Radius}" />
+                                            <Button Grid.Row="0" Grid.Column="1" Content="-" Command="{Binding CircleRadiusDown}" Width="24" Height="24" Padding="0"/>
+                                            <Slider Grid.Row="0" Grid.Column="2" Minimum="10" Maximum="2500"
+                                                    Value="{Binding SelectedCircle.Radius}" Margin="4,0"/>
+                                            <Button Grid.Row="0" Grid.Column="3" Content="+" Command="{Binding CircleRadiusUp}" Width="24" Height="24" Padding="0"/>
 
                                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Dicke" VerticalAlignment="Center" Foreground="#FFBFBFBF" Margin="0,8,0,0"/>
-                                            <Slider Grid.Row="1" Grid.Column="1" Minimum="1" Maximum="12"
-                                                    Value="{Binding SelectedCircle.Thickness}" Margin="0,8,0,0"/>
+                                            <Button Grid.Row="1" Grid.Column="1" Content="-" Command="{Binding CircleThicknessDown}" Width="24" Height="24" Padding="0" Margin="0,8,0,0"/>
+                                            <Slider Grid.Row="1" Grid.Column="2" Minimum="1" Maximum="12"
+                                                    Value="{Binding SelectedCircle.Thickness}" Margin="4,8,4,0"/>
+                                            <Button Grid.Row="1" Grid.Column="3" Content="+" Command="{Binding CircleThicknessUp}" Width="24" Height="24" Padding="0" Margin="0,8,0,0"/>
 
                                             <TextBlock Grid.Row="2" Grid.Column="0" Text="Farbe" VerticalAlignment="Center" Foreground="#FFBFBFBF" Margin="0,8,0,0"/>
-                                            <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding BrushOptions}"
+                                            <ComboBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" ItemsSource="{Binding BrushOptions}"
                                                       DisplayMemberPath="Name" SelectedValuePath="Brush"
                                                       SelectedValue="{Binding SelectedCircle.Stroke}" Margin="0,8,0,0"/>
                                         </Grid>
@@ -239,6 +260,7 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="120"/>
@@ -251,7 +273,15 @@
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Center Y" VerticalAlignment="Center" Foreground="#FFBFBFBF" Margin="0,8,0,0"/>
                                 <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding CenterY, UpdateSourceTrigger=PropertyChanged}" Margin="0,8,0,0"/>
 
-                                <Button Grid.Row="2" Grid.ColumnSpan="2" Content="Auf Bildmitte setzen"
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Kalibrierbasis" VerticalAlignment="Center" Foreground="#FFBFBFBF" Margin="0,8,0,0"/>
+                                <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,0">
+                                    <TextBox Width="80" Text="{Binding CalibrationWidth, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Text=" × " VerticalAlignment="Center" Foreground="#FFBFBFBF" Margin="6,0"/>
+                                    <TextBox Width="80" Text="{Binding CalibrationHeight, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+
+                                <Button Grid.Row="3" Grid.ColumnSpan="2" Content="Auf Bildmitte setzen"
                                         Command="{Binding SetCenterToFrameCommand}" Margin="0,12,0,0" Padding="10,6"/>
                             </Grid>
 

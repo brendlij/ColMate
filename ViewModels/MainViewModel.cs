@@ -7,6 +7,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -28,6 +29,14 @@ namespace ColMate.ViewModels
         // Calibration center (editable)
         private double _centerX = 1935.49;
         private double _centerY = 1069.4;
+
+        // Die Koordinaten (CenterX/CenterY) beziehen sich auf diese Basisauflösung (z.B. 3840×2160)
+        private double _calibrationWidth = 3840;
+        private double _calibrationHeight = 2160;
+
+        // Wunschauflösung für den Stream (wird "best effort" gesetzt; echte Größe kommt aus den Frames)
+        private int _requestedStreamWidth = 3840;
+        private int _requestedStreamHeight = 2160;
 
         // Crosshair
         private double _crosshairAngle = 0;
@@ -71,27 +80,73 @@ namespace ColMate.ViewModels
         public double FrameWidth
         {
             get => _frameWidth;
-            private set { _frameWidth = value; OnPropertyChanged(); OnPropertyChanged(nameof(FrameInfo)); }
+            private set { _frameWidth = value; OnPropertyChanged(); OnPropertyChanged(nameof(OverlayCenterX)); OnPropertyChanged(nameof(FrameInfo)); }
         }
 
         public double FrameHeight
         {
             get => _frameHeight;
-            private set { _frameHeight = value; OnPropertyChanged(); OnPropertyChanged(nameof(FrameInfo)); }
+            private set { _frameHeight = value; OnPropertyChanged(); OnPropertyChanged(nameof(OverlayCenterY)); OnPropertyChanged(nameof(FrameInfo)); }
         }
 
-        public string FrameInfo => $"Frame: {FrameWidth:0}×{FrameHeight:0} | Center: ({CenterX:0.00}, {CenterY:0.00})";
+                public string FrameInfo =>
+            $"Frame: {FrameWidth:0}×{FrameHeight:0} | Center(Overlay): ({OverlayCenterX:0.00}, {OverlayCenterY:0.00}) | Base: {CalibrationWidth:0}×{CalibrationHeight:0}";
 
         public double CenterX
         {
             get => _centerX;
-            set { _centerX = value; OnPropertyChanged(); }
+            set { _centerX = value; OnPropertyChanged(); OnPropertyChanged(nameof(OverlayCenterX)); OnPropertyChanged(nameof(FrameInfo)); }
         }
 
         public double CenterY
         {
             get => _centerY;
-            set { _centerY = value; OnPropertyChanged(); }
+            set { _centerY = value; OnPropertyChanged(); OnPropertyChanged(nameof(OverlayCenterY)); OnPropertyChanged(nameof(FrameInfo)); }
+        }
+
+        public double CalibrationWidth
+        {
+            get => _calibrationWidth;
+            set
+            {
+                _calibrationWidth = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(OverlayCenterX));
+                OnPropertyChanged(nameof(FrameInfo));
+            }
+        }
+
+        public double CalibrationHeight
+        {
+            get => _calibrationHeight;
+            set
+            {
+                _calibrationHeight = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(OverlayCenterY));
+                OnPropertyChanged(nameof(FrameInfo));
+            }
+        }
+
+        // Center in aktuellem Frame-Koordinatensystem (skaliert aus der Kalibrierbasis)
+        public double OverlayCenterX => (CalibrationWidth > 0 && FrameWidth > 0)
+            ? CenterX * (FrameWidth / CalibrationWidth)
+            : CenterX;
+
+        public double OverlayCenterY => (CalibrationHeight > 0 && FrameHeight > 0)
+            ? CenterY * (FrameHeight / CalibrationHeight)
+            : CenterY;
+
+        public int RequestedStreamWidth
+        {
+            get => _requestedStreamWidth;
+            set { _requestedStreamWidth = value; OnPropertyChanged(); }
+        }
+
+        public int RequestedStreamHeight
+        {
+            get => _requestedStreamHeight;
+            set { _requestedStreamHeight = value; OnPropertyChanged(); }
         }
 
         public double CrosshairAngle
@@ -120,12 +175,12 @@ namespace ColMate.ViewModels
 
         private double CrosshairHalfLength => CrosshairLength / 2.0;
 
-        public double CrosshairX1 => CenterX - CrosshairHalfLength;
-        public double CrosshairX2 => CenterX + CrosshairHalfLength;
-        public double CrosshairY1 => CenterY - CrosshairHalfLength;
-        public double CrosshairY2 => CenterY + CrosshairHalfLength;
-
-        public double Focus
+                // Crosshair should use the *overlay* center (scaled to current frame)
+        public double CrosshairX1 => OverlayCenterX - CrosshairHalfLength;
+        public double CrosshairX2 => OverlayCenterX + CrosshairHalfLength;
+        public double CrosshairY1 => OverlayCenterY - CrosshairHalfLength;
+        public double CrosshairY2 => OverlayCenterY + CrosshairHalfLength;
+public double Focus
         {
             get => _focus;
             set { _focus = value; _stream.SetFocus(value); OnPropertyChanged(); }
@@ -175,6 +230,20 @@ namespace ColMate.ViewModels
         public RelayCommand ExpUp => new(() => Exposure += 1);
         public RelayCommand ExpDown => new(() => Exposure -= 1);
 
+        // Crosshair Fine Tuning
+        public RelayCommand CrosshairAngleUp { get; }
+        public RelayCommand CrosshairAngleDown { get; }
+        public RelayCommand CrosshairLengthUp { get; }
+        public RelayCommand CrosshairLengthDown { get; }
+        public RelayCommand CrosshairThicknessUp { get; }
+        public RelayCommand CrosshairThicknessDown { get; }
+
+        // Circle Fine Tuning
+        public RelayCommand CircleRadiusUp { get; }
+        public RelayCommand CircleRadiusDown { get; }
+        public RelayCommand CircleThicknessUp { get; }
+        public RelayCommand CircleThicknessDown { get; }
+
         public MainViewModel()
         {
             _stream.FrameReady += OnFrameReady;
@@ -190,10 +259,27 @@ namespace ColMate.ViewModels
             {
                 if (FrameWidth > 0 && FrameHeight > 0)
                 {
+                    // Setzt sowohl den Center als auch die Kalibrierbasis auf den aktuellen Frame,
+                    // damit Overlay-Koordinaten 1:1 stimmen.
+                    CalibrationWidth = FrameWidth;
+                    CalibrationHeight = FrameHeight;
                     CenterX = FrameWidth / 2.0;
                     CenterY = FrameHeight / 2.0;
                 }
             });
+
+            // Fine Tuning Commands
+            CrosshairAngleUp = new RelayCommand(() => CrosshairAngle += 0.5);
+            CrosshairAngleDown = new RelayCommand(() => CrosshairAngle -= 0.5);
+            CrosshairLengthUp = new RelayCommand(() => CrosshairLength += 10);
+            CrosshairLengthDown = new RelayCommand(() => CrosshairLength -= 10);
+            CrosshairThicknessUp = new RelayCommand(() => CrosshairThickness += 0.5);
+            CrosshairThicknessDown = new RelayCommand(() => CrosshairThickness -= 0.5);
+
+            CircleRadiusUp = new RelayCommand(() => { if (SelectedCircle != null) SelectedCircle.Radius += 5; });
+            CircleRadiusDown = new RelayCommand(() => { if (SelectedCircle != null) SelectedCircle.Radius -= 5; });
+            CircleThicknessUp = new RelayCommand(() => { if (SelectedCircle != null) SelectedCircle.Thickness += 0.5; });
+            CircleThicknessDown = new RelayCommand(() => { if (SelectedCircle != null) SelectedCircle.Thickness -= 0.5; });
 
             // Default circles (user can edit/add/remove)
             Circles.Add(new OverlayCircle(radius: 250, stroke: Brushes.Lime, thickness: 2));
@@ -222,7 +308,7 @@ namespace ColMate.ViewModels
 
             try
             {
-                _stream.Start(SelectedCamera.Index);
+                _stream.Start(SelectedCamera.Index, RequestedStreamWidth, RequestedStreamHeight);
 
                 // set frame size immediately if available
                 if (_stream.VideoWidth > 0 && _stream.VideoHeight > 0)
@@ -285,15 +371,65 @@ namespace ColMate.ViewModels
                     FrameHeight = mat.Height;
                 }
 
-                var bmp = mat.ToBitmapSource();
-                bmp.Freeze();
-                App.Current.Dispatcher.Invoke(() => PreviewFrame = bmp);
-            }
+                // Convert Mat -> BitmapSource with a fixed, correct stride (avoids "top-left only" artifacts)
+using var bgr = EnsureBgr24(mat);
+var bmp = CreateBitmapSourceBgr24(bgr);
+bmp.Freeze();
+App.Current.Dispatcher.Invoke(() => PreviewFrame = bmp);
+}
             finally
             {
                 mat.Dispose();
             }
         }
+
+
+        private static Mat EnsureBgr24(Mat src)
+        {
+            // Returns a *new* Mat in BGR24 (CV_8UC3). Caller disposes it.
+            if (src.Type() == MatType.CV_8UC3)
+                return src.IsContinuous() ? src.Clone() : src.Clone();
+
+            var dst = new Mat();
+            if (src.Type() == MatType.CV_8UC1)
+                Cv2.CvtColor(src, dst, ColorConversionCodes.GRAY2BGR);
+            else if (src.Type() == MatType.CV_8UC4)
+                Cv2.CvtColor(src, dst, ColorConversionCodes.BGRA2BGR);
+            else
+            {
+                // Fallback: try to convert to 8-bit then to BGR
+                using var tmp8 = new Mat();
+                src.ConvertTo(tmp8, MatType.CV_8U);
+                Cv2.CvtColor(tmp8, dst, ColorConversionCodes.GRAY2BGR);
+            }
+
+            if (!dst.IsContinuous())
+                dst = dst.Clone();
+
+            return dst;
+        }
+
+        private static BitmapSource CreateBitmapSourceBgr24(Mat bgr)
+        {
+            var width = bgr.Cols;
+            var height = bgr.Rows;
+            const int bytesPerPixel = 3;
+            var stride = width * bytesPerPixel;
+
+            // Copy managed buffer (stable + correct)
+            var buffer = new byte[stride * height];
+            Marshal.Copy(bgr.Data, buffer, 0, buffer.Length);
+
+            return BitmapSource.Create(
+                width, height,
+                96, 96,
+                PixelFormats.Bgr24,
+                null,
+                buffer,
+                stride
+            );
+        }
+
 
         public void OnClosing() => _stream.Dispose();
 

@@ -2,7 +2,7 @@
 using System.Globalization;
 using System.Windows.Data;
 
-namespace ColMate.ViewModels
+namespace ColMate.Helpers
 {
     public class CenterConverter : IMultiValueConverter
     {
