@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="256" height="256" viewBox="0 0 256 256">
+
+  <!-- Background -->
+  <rect x="0" y="0" width="256" height="256" rx="48"
+        fill="#111111"/>
+
+  <!-- Outer collimation ring -->
+  <circle cx="128" cy="128" r="64"
+          fill="none"
+          stroke="#E6E6E6"
+          stroke-width="12"/>
+
+  <!-- Inner ring -->
+  <circle cx="128" cy="128" r="36"
+          fill="none"
+          stroke="#B0B0B0"
+          stroke-width="8"/>
+
+  <!-- Center dot -->
+  <circle cx="128" cy="128" r="6"
+          fill="#E6E6E6"/>
+
+  <!-- Crosshair -->
+  <line x1="128" y1="56" x2="128" y2="200"
+        stroke="#E6E6E6"
+        stroke-width="6"
+        stroke-linecap="round"/>
+
+  <line x1="56" y1="128" x2="200" y2="128"
+        stroke="#E6E6E6"
+        stroke-width="6"
+        stroke-linecap="round"/>
+
+</svg>

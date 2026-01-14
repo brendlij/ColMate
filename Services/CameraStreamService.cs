@@ -25,7 +25,7 @@ namespace ColMate.Services
 
             if (!_capture.IsOpened())
             {
-                Status?.Invoke("Fehler: Kamera konnte nicht geöffnet werden.");
+                Status?.Invoke("Error: Could not open camera.");
                 return;
             }
 
@@ -51,7 +51,7 @@ namespace ColMate.Services
 
             _cts = new CancellationTokenSource();
             IsStreaming = true;
-            Status?.Invoke($"Stream aktiv: {VideoWidth}×{VideoHeight}");
+            Status?.Invoke($"Stream active: {VideoWidth}×{VideoHeight}");
             Task.Run(() => Loop(_cts.Token));
         }
 
@@ -76,7 +76,7 @@ namespace ColMate.Services
             _capture?.Dispose();
             _capture = null;
             IsStreaming = false;
-            Status?.Invoke("Gestoppt.");
+            Status?.Invoke("Stopped.");
         }
 
         private void Loop(CancellationToken token)

@@ -9,12 +9,19 @@ namespace ColMate.Models
         private double _radius;
         private double _thickness;
         private Brush _stroke;
+        private bool _isVisible = true;
 
         public OverlayCircle(double radius, Brush stroke, double thickness)
         {
             _radius = radius;
             _stroke = stroke;
             _thickness = thickness;
+        }
+
+        public bool IsVisible
+        {
+            get => _isVisible;
+            set { _isVisible = value; OnPropertyChanged(); }
         }
 
         public double Radius

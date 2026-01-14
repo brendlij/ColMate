@@ -20,7 +20,7 @@ namespace ColMate.ViewModels
 
         private CameraDevice? _selectedCamera;
         private BitmapSource? _previewFrame;
-        private string _status = "Bereit";
+        private string _status = "Ready";
 
         // Frame size (native coordinate system for overlay)
         private double _frameWidth = 3840;
@@ -43,6 +43,15 @@ namespace ColMate.ViewModels
         private double _crosshairLength = 900;
         private double _crosshairThickness = 2;
         private Brush _crosshairBrush = Brushes.Red;
+
+        // Zoom
+        private double _zoom = 1.0;
+        private double _panX = 0;
+        private double _panY = 0;
+
+        // Manual Overlay Offset
+        private double _overlayOffsetX = 0;
+        private double _overlayOffsetY = 0;
 
         // Focus/Exposure
         private double _focus;
@@ -90,7 +99,7 @@ namespace ColMate.ViewModels
         }
 
                 public string FrameInfo =>
-            $"Frame: {FrameWidth:0}×{FrameHeight:0} | Center(Overlay): ({OverlayCenterX:0.00}, {OverlayCenterY:0.00}) | Base: {CalibrationWidth:0}×{CalibrationHeight:0}";
+            $"Frame: {FrameWidth:0}×{FrameHeight:0} | Center: ({OverlayCenterX:0.0}, {OverlayCenterY:0.0}) | Offset: ({OverlayOffsetX:+0.0;-0.0;0}, {OverlayOffsetY:+0.0;-0.0;0})";
 
         public double CenterX
         {
@@ -128,14 +137,43 @@ namespace ColMate.ViewModels
             }
         }
 
-        // Center in aktuellem Frame-Koordinatensystem (skaliert aus der Kalibrierbasis)
-        public double OverlayCenterX => (CalibrationWidth > 0 && FrameWidth > 0)
+        // Center in aktuellem Frame-Koordinatensystem (skaliert aus der Kalibrierbasis) + Manual Offset
+        public double OverlayCenterX => ((CalibrationWidth > 0 && FrameWidth > 0)
             ? CenterX * (FrameWidth / CalibrationWidth)
-            : CenterX;
+            : CenterX) + OverlayOffsetX;
 
-        public double OverlayCenterY => (CalibrationHeight > 0 && FrameHeight > 0)
+        public double OverlayCenterY => ((CalibrationHeight > 0 && FrameHeight > 0)
             ? CenterY * (FrameHeight / CalibrationHeight)
-            : CenterY;
+            : CenterY) + OverlayOffsetY;
+
+        // Manual Overlay Offset Properties
+        public double OverlayOffsetX
+        {
+            get => _overlayOffsetX;
+            set 
+            { 
+                _overlayOffsetX = value; 
+                OnPropertyChanged(); 
+                OnPropertyChanged(nameof(OverlayCenterX));
+                OnPropertyChanged(nameof(CrosshairX1));
+                OnPropertyChanged(nameof(CrosshairX2));
+                OnPropertyChanged(nameof(FrameInfo));
+            }
+        }
+
+        public double OverlayOffsetY
+        {
+            get => _overlayOffsetY;
+            set 
+            { 
+                _overlayOffsetY = value; 
+                OnPropertyChanged(); 
+                OnPropertyChanged(nameof(OverlayCenterY));
+                OnPropertyChanged(nameof(CrosshairY1));
+                OnPropertyChanged(nameof(CrosshairY2));
+                OnPropertyChanged(nameof(FrameInfo));
+            }
+        }
 
         public int RequestedStreamWidth
         {
@@ -173,6 +211,33 @@ namespace ColMate.ViewModels
             set { _crosshairBrush = value; OnPropertyChanged(); }
         }
 
+        // Zoom Properties
+        public double Zoom
+        {
+            get => _zoom;
+            set 
+            { 
+                _zoom = Math.Clamp(value, 0.5, 10.0); 
+                OnPropertyChanged(); 
+            }
+        }
+
+        public double PanX
+        {
+            get => _panX;
+            set { _panX = value; OnPropertyChanged(); }
+        }
+
+        public double PanY
+        {
+            get => _panY;
+            set { _panY = value; OnPropertyChanged(); }
+        }
+
+        public void ZoomIn() => Zoom *= 1.15;
+        public void ZoomOut() => Zoom /= 1.15;
+        public void ResetZoom() { Zoom = 1.0; PanX = 0; PanY = 0; }
+
         private double CrosshairHalfLength => CrosshairLength / 2.0;
 
                 // Crosshair should use the *overlay* center (scaled to current frame)
@@ -199,11 +264,11 @@ public double Focus
 
         public ObservableCollection<NamedBrush> BrushOptions { get; } = new()
         {
-            new NamedBrush("Rot", Brushes.Red),
-            new NamedBrush("Grün", Brushes.Lime),
-            new NamedBrush("Blau", Brushes.DeepSkyBlue),
-            new NamedBrush("Gelb", Brushes.Gold),
-            new NamedBrush("Weiß", Brushes.White),
+            new NamedBrush("Red", Brushes.Red),
+            new NamedBrush("Green", Brushes.Lime),
+            new NamedBrush("Blue", Brushes.DeepSkyBlue),
+            new NamedBrush("Yellow", Brushes.Gold),
+            new NamedBrush("White", Brushes.White),
             new NamedBrush("Cyan", Brushes.Cyan),
             new NamedBrush("Magenta", Brushes.Magenta),
         };
@@ -244,6 +309,21 @@ public double Focus
         public RelayCommand CircleThicknessUp { get; }
         public RelayCommand CircleThicknessDown { get; }
 
+        // Overlay Offset Fine Tuning
+        public RelayCommand OffsetXUp { get; }
+        public RelayCommand OffsetXDown { get; }
+        public RelayCommand OffsetYUp { get; }
+        public RelayCommand OffsetYDown { get; }
+
+        // Reset Commands
+        public void ResetCrosshairAngle() => CrosshairAngle = 0;
+        public void ResetCrosshairLength() => CrosshairLength = 900;
+        public void ResetCrosshairThickness() => CrosshairThickness = 2;
+        public void ResetOffsetX() => OverlayOffsetX = 0;
+        public void ResetOffsetY() => OverlayOffsetY = 0;
+        public void ResetFocus() => Focus = 0;
+        public void ResetExposure() => Exposure = -5;
+
         public MainViewModel()
         {
             _stream.FrameReady += OnFrameReady;
@@ -281,6 +361,12 @@ public double Focus
             CircleThicknessUp = new RelayCommand(() => { if (SelectedCircle != null) SelectedCircle.Thickness += 0.5; });
             CircleThicknessDown = new RelayCommand(() => { if (SelectedCircle != null) SelectedCircle.Thickness -= 0.5; });
 
+            // Offset Fine Tuning
+            OffsetXUp = new RelayCommand(() => OverlayOffsetX += 0.1);
+            OffsetXDown = new RelayCommand(() => OverlayOffsetX -= 0.1);
+            OffsetYUp = new RelayCommand(() => OverlayOffsetY += 0.1);
+            OffsetYDown = new RelayCommand(() => OverlayOffsetY -= 0.1);
+
             // Default circles (user can edit/add/remove)
             Circles.Add(new OverlayCircle(radius: 250, stroke: Brushes.Lime, thickness: 2));
             Circles.Add(new OverlayCircle(radius: 600, stroke: Brushes.Lime, thickness: 2));
@@ -299,7 +385,7 @@ public double Focus
                 Cameras.Add(cam);
 
             SelectedCamera = Cameras.Count > 0 ? Cameras[0] : null;
-            Status = Cameras.Count > 0 ? $"{Cameras.Count} Kamera(s) gefunden" : "Keine Kamera gefunden";
+            Status = Cameras.Count > 0 ? $"{Cameras.Count} camera(s) found" : "No camera found";
         }
 
         private void Start()
@@ -330,7 +416,7 @@ public double Focus
             }
             catch (Exception ex)
             {
-                Status = $"Start fehlgeschlagen: {ex.Message}";
+                Status = $"Start failed: {ex.Message}";
             }
         }
 
@@ -341,7 +427,7 @@ public double Focus
 
             StartCommand.RaiseCanExecuteChanged();
             StopCommand.RaiseCanExecuteChanged();
-            Status = "Gestoppt";
+            Status = "Stopped";
         }
 
         private void AddCircle()
